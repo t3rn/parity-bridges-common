@@ -26,7 +26,7 @@ mod rpc;
 pub mod headers_source;
 
 pub use crate::chain::{BlockWithJustification, Chain, TransactionSignScheme};
-pub use crate::client::{Client, OpaqueGrandpaAuthoritiesSet};
+pub use crate::client::{Client, JustificationsSubscription, OpaqueGrandpaAuthoritiesSet};
 pub use crate::error::{Error, Result};
 pub use bp_runtime::{BlockNumberOf, Chain as ChainBase, HashOf, HeaderOf};
 
@@ -43,7 +43,7 @@ impl Default for ConnectionParams {
 	fn default() -> Self {
 		ConnectionParams {
 			host: "localhost".into(),
-			port: 9933,
+			port: 9944,
 		}
 	}
 }

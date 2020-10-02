@@ -18,18 +18,24 @@
 
 use crate::{MillauClient, RialtoClient};
 
+use async_std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use codec::Encode;
+use futures::future::{poll_fn, FutureExt};
 use headers_relay::{
-	sync::{HeadersSyncParams, TargetTransactionMode},
-	sync_loop::TargetClient,
-	sync_types::{HeadersSyncPipeline, QueuedHeader, SubmittedHeaders},
+	sync::{HeadersSync, HeadersSyncParams, TargetTransactionMode},
+	sync_loop::{SyncMaintain, TargetClient},
+	sync_types::{HeaderStatus, HeadersSyncPipeline, QueuedHeader, SubmittedHeaders},
 };
 use relay_millau_client::{HeaderId as MillauHeaderId, Millau, SyncHeader as MillauSyncHeader};
 use relay_rialto_client::SigningParams as RialtoSigningParams;
-use relay_substrate_client::{headers_source::HeadersSource, BlockNumberOf, Error as SubstrateError, HashOf};
+use relay_substrate_client::{
+	headers_source::HeadersSource, BlockNumberOf, Error as SubstrateError, HashOf, HeaderOf,
+	JustificationsSubscription, TransactionSignScheme,
+};
+use relay_utils::HeaderId;
 use sp_runtime::Justification;
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, task::Poll, time::Duration};
 
 /// Millau-to-Rialto headers pipeline.
 #[derive(Debug, Clone, Copy)]
@@ -96,8 +102,75 @@ impl TargetClient<MillauHeadersToRialto> for RialtoTargetClient {
 	}
 }
 
+/// Maintainment procedure of Millau -> Rialto headers.
+struct MillauHeadersToRialtoMaintain {
+	millau_justifications: Arc<Mutex<JustificationsSubscription>>,
+}
+
+#[async_trait]
+impl SyncMaintain<MillauHeadersToRialto> for MillauHeadersToRialtoMaintain {
+	async fn maintain(&self, sync: &mut HeadersSync<MillauHeadersToRialto>) {
+		poll_fn(|context| {
+			let mut millau_justifications = match self.millau_justifications.try_lock() {
+				Some(millau_justifications) => millau_justifications,
+				None => {
+					// this should never happen, as we use single-thread executor
+					log::warn!(target: "bridge", "Failed to lock Millau justifications mutex");
+					return Poll::Ready(());
+				}
+			};
+
+			loop {
+				let maybe_next_millau_justification = millau_justifications.next();
+				futures::pin_mut!(maybe_next_millau_justification);
+
+				let maybe_next_millau_justification = maybe_next_millau_justification.poll_unpin(context);
+				match maybe_next_millau_justification {
+					Poll::Ready(millau_justification) => {
+						// TODO: we only need last justification before incomplete header - no need to submit all
+						// pending justifications
+
+						// TODO: move justification decode to primitives && decode at Client fn
+						use pallet_substrate_bridge::decode_justification_target;
+						let justification_target =
+							decode_justification_target::<HeaderOf<Millau>>(&millau_justification);
+						match justification_target {
+							Ok((target_hash, target_number)) => {
+								let target = HeaderId(target_number, target_hash);
+
+								log::debug!(target: "bridge", "Received justification over subscription. Target: {:?}", target);
+								if sync.headers().requires_completion_data(&target) {
+									sync.headers_mut()
+										.completion_response(&target, Some(millau_justification.0));
+									continue;
+								}
+
+								if sync.headers().status(&target) == HeaderStatus::Synced {
+									// TODO: https://github.com/paritytech/parity-bridges-common/issues/209
+									// submit justification to Rialto
+								}
+							}
+							Err(error) => {
+								log::warn!(
+									target: "bridge",
+									"Failed to decode justification from Millau: {:?}",
+									error,
+								);
+							}
+						}
+					}
+					Poll::Pending => break,
+				}
+			}
+
+			Poll::Ready(())
+		})
+		.await
+	}
+}
+
 /// Run Millau-to-Rialto headers sync.
-pub fn run(
+pub async fn run(
 	millau_client: MillauClient,
 	rialto_client: RialtoClient,
 	rialto_sign: RialtoSigningParams,
@@ -114,6 +187,19 @@ pub fn run(
 		target_tx_mode: TargetTransactionMode::Signed,
 	};
 
+	let millau_justifications = match millau_client.clone().subscribe_justifications().await {
+		Ok(millau_justifications) => millau_justifications,
+		Err(error) => {
+			log::warn!(
+				target: "bridge",
+				"Failed to subscribe to Millau justifications: {:?}",
+				error,
+			);
+
+			return;
+		}
+	};
+
 	headers_relay::sync_loop::run(
 		MillauSourceClient::new(millau_client),
 		millau_tick,
@@ -122,6 +208,9 @@ pub fn run(
 			_sign: rialto_sign,
 		},
 		rialto_tick,
+		MillauHeadersToRialtoMaintain {
+			millau_justifications: Arc::new(Mutex::new(millau_justifications)),
+		},
 		sync_params,
 		metrics_params,
 		futures::future::pending(),

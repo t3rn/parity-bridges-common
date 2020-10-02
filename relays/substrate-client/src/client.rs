@@ -22,17 +22,21 @@ use crate::{ConnectionParams, Result};
 
 use jsonrpsee::common::DeserializeOwned;
 use jsonrpsee::raw::RawClient;
-use jsonrpsee::transport::http::HttpTransportClient;
-use jsonrpsee::Client as RpcClient;
+use jsonrpsee::transport::ws::WsTransportClient;
+use jsonrpsee::{client::Subscription, Client as RpcClient};
 use num_traits::Zero;
 use sp_core::Bytes;
 
 const SUB_API_GRANDPA_AUTHORITIES: &str = "GrandpaApi_grandpa_authorities";
 
+/// Opaque justifications subscription type.
+pub type JustificationsSubscription = Subscription<Bytes>;
+
 /// Opaque GRANDPA authorities set.
 pub type OpaqueGrandpaAuthoritiesSet = Vec<u8>;
 
 /// Substrate client type.
+#[derive(Clone)]
 pub struct Client<C: Chain> {
 	/// Substrate RPC client.
 	client: RpcClient,
@@ -51,8 +55,8 @@ impl<C: Chain> std::fmt::Debug for Client<C> {
 impl<C: Chain> Client<C> {
 	/// Returns client that is able to call RPCs on Substrate node.
 	pub async fn new(params: ConnectionParams) -> Result<Self> {
-		let uri = format!("http://{}:{}", params.host, params.port);
-		let transport = HttpTransportClient::new(&uri);
+		let uri = format!("ws://{}:{}", params.host, params.port);
+		let transport = WsTransportClient::new(&uri).await?;
 		let raw_client = RawClient::new(transport);
 		let client: RpcClient = raw_client.into();
 
@@ -131,5 +135,17 @@ where
 		Substrate::<C, _, _>::state_call(&self.client, method, data, at_block)
 			.await
 			.map_err(Into::into)
+	}
+
+	/// Return new justifications stream.
+	pub async fn subscribe_justifications(self) -> Result<JustificationsSubscription> {
+		Ok(self
+			.client
+			.subscribe(
+				"grandpa_subscribeJustifications",
+				jsonrpsee::common::Params::None,
+				"grandpa_unsubscribeJustifications",
+			)
+			.await?)
 	}
 }
