@@ -5162,9 +5162,12 @@ dependencies = [
  "frame-system",
  "headers-relay",
  "millau-runtime",
+ "pallet-transaction-payment",
  "parity-scale-codec",
  "relay-substrate-client",
  "relay-utils",
+ "sp-core",
+ "sp-keyring",
  "sp-runtime",
 ]
 
@@ -5189,6 +5192,8 @@ name = "relay-substrate-client"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bp-message-lane",
+ "bp-runtime",
  "frame-support",
  "frame-system",
  "headers-relay",
@@ -7475,9 +7480,12 @@ version = "0.1.0"
 dependencies = [
  "async-std",
  "async-trait",
+ "bp-message-lane",
  "bp-rialto",
+ "bp-runtime",
  "futures 0.3.5",
  "headers-relay",
+ "hex",
  "log",
  "messages-relay",
  "parity-scale-codec",
@@ -7486,6 +7494,7 @@ dependencies = [
  "relay-rialto-client",
  "relay-substrate-client",
  "relay-utils",
+ "sp-core",
  "sp-runtime",
  "structopt",
 ]

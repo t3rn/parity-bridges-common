@@ -18,6 +18,7 @@ use crate::client::Client;
 
 use frame_support::Parameter;
 use jsonrpsee::common::{DeserializeOwned, Serialize};
+use relay_utils::HeaderId;
 use sp_core::Pair;
 use sp_runtime::{
 	generic::SignedBlock,
@@ -30,7 +31,7 @@ use sp_runtime::{
 use sp_std::fmt::Debug;
 
 /// Substrate-based chain from minimal relay-client point of view.
-pub trait Chain {
+pub trait Chain: Clone {
 	/// The block number type used by the runtime.
 	type BlockNumber: Parameter
 		+ Member
@@ -104,6 +105,9 @@ pub type HashOf<C> = <C as Chain>::Hash;
 
 /// Block number used by the chain.
 pub type BlockNumberOf<C> = <C as Chain>::BlockNumber;
+
+/// Header id used by the chain.
+pub type HeaderIdOf<C> = HeaderId<HashOf<C>, BlockNumberOf<C>>;
 
 impl<Block> BlockWithJustification for SignedBlock<Block> {
 	fn justification(&self) -> Option<&Justification> {

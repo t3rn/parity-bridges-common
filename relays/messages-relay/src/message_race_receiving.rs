@@ -86,7 +86,7 @@ struct ReceivingConfirmationsRaceSource<P: MessageLane, C> {
 	_phantom: PhantomData<P>,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<P, C> SourceClient<ReceivingConfirmationsRace<P>> for ReceivingConfirmationsRaceSource<P, C>
 where
 	P: MessageLane,
@@ -126,7 +126,7 @@ struct ReceivingConfirmationsRaceTarget<P: MessageLane, C> {
 	_phantom: PhantomData<P>,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<P, C> TargetClient<ReceivingConfirmationsRace<P>> for ReceivingConfirmationsRaceTarget<P, C>
 where
 	P: MessageLane,
@@ -144,11 +144,12 @@ where
 	async fn submit_proof(
 		&self,
 		generated_at_block: TargetHeaderIdOf<P>,
-		_nonces: RangeInclusive<P::MessageNonce>,
+		nonces: RangeInclusive<P::MessageNonce>,
 		proof: P::MessagesReceivingProof,
 	) -> Result<RangeInclusive<P::MessageNonce>, Self::Error> {
 		self.client
 			.submit_messages_receiving_proof(generated_at_block, proof)
-			.await
+			.await?;
+		Ok(nonces)
 	}
 }

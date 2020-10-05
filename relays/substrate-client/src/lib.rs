@@ -25,7 +25,9 @@ mod rpc;
 
 pub mod headers_source;
 
-pub use crate::chain::{BlockNumberOf, BlockWithJustification, Chain, HashOf, HeaderOf, TransactionSignScheme};
+pub use crate::chain::{
+	BlockNumberOf, BlockWithJustification, Chain, HashOf, HeaderIdOf, HeaderOf, TransactionSignScheme,
+};
 pub use crate::client::{Client, OpaqueGrandpaAuthoritiesSet};
 pub use crate::error::{Error, Result};
 
