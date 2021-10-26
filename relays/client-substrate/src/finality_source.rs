@@ -16,10 +16,12 @@
 
 //! Default generic implementation of finality source for basic Substrate client.
 
-use crate::chain::{BlockWithJustification, Chain};
-use crate::client::Client;
-use crate::error::Error;
-use crate::sync_header::SyncHeader;
+use crate::{
+	chain::{BlockWithJustification, Chain},
+	client::Client,
+	error::Error,
+	sync_header::SyncHeader,
+};
 
 use async_std::sync::{Arc, Mutex};
 use async_trait::async_trait;
@@ -43,12 +45,11 @@ pub struct FinalitySource<C: Chain, P> {
 
 impl<C: Chain, P> FinalitySource<C, P> {
 	/// Create new headers source using given client.
-	pub fn new(client: Client<C>, maximal_header_number: Option<RequiredHeaderNumberRef<C>>) -> Self {
-		FinalitySource {
-			client,
-			maximal_header_number,
-			_phantom: Default::default(),
-		}
+	pub fn new(
+		client: Client<C>,
+		maximal_header_number: Option<RequiredHeaderNumberRef<C>>,
+	) -> Self {
+		FinalitySource { client, maximal_header_number, _phantom: Default::default() }
 	}
 
 	/// Returns reference to the underlying RPC client.
@@ -87,16 +88,16 @@ impl<C: Chain, P: FinalitySyncPipeline> RelayClient for FinalitySource<C, P> {
 
 #[async_trait]
 impl<C, P> SourceClient<P> for FinalitySource<C, P>
-	where
-		C: Chain,
-		C::BlockNumber: relay_utils::BlockNumberBase,
-		P: FinalitySyncPipeline<
-			Hash = C::Hash,
-			Number = C::BlockNumber,
-			Header = SyncHeader<C::Header>,
-			FinalityProof = GrandpaJustification<C::Header>,
-		>,
-		P::Header: SourceHeader<C::BlockNumber>,
+where
+	C: Chain,
+	C::BlockNumber: relay_utils::BlockNumberBase,
+	P: FinalitySyncPipeline<
+		Hash = C::Hash,
+		Number = C::BlockNumber,
+		Header = SyncHeader<C::Header>,
+		FinalityProof = GrandpaJustification<C::Header>,
+	>,
+	P::Header: SourceHeader<C::BlockNumber>,
 {
 	type FinalityProofsStream = Pin<Box<dyn Stream<Item = GrandpaJustification<C::Header>> + Send>>;
 
@@ -122,7 +123,9 @@ impl<C, P> SourceClient<P> for FinalitySource<C, P>
 
 		let justification = signed_block
 			.justification()
-			.map(|raw_justification| GrandpaJustification::<C::Header>::decode(&mut raw_justification.as_slice()))
+			.map(|raw_justification| {
+				GrandpaJustification::<C::Header>::decode(&mut raw_justification.as_slice())
+			})
 			.transpose()
 			.map_err(Error::ResponseParseFailed)?;
 
@@ -132,7 +135,7 @@ impl<C, P> SourceClient<P> for FinalitySource<C, P>
 	async fn finality_proofs(&self) -> Result<Self::FinalityProofsStream, Error> {
 		Ok(unfold(
 			self.client.clone().subscribe_justifications().await?,
-			move |mut subscription| async move {
+			move |subscription| async move {
 				loop {
 					let log_error = |err| {
 						log::error!(
@@ -148,30 +151,22 @@ impl<C, P> SourceClient<P> for FinalitySource<C, P>
 						.await
 						.map_err(|err| log_error(err.to_string()))
 						.ok()??;
+
 					let decoded_justification =
-						GrandpaJustification::<C::Header>::decode(&mut &next_justification.0[..]);
+						GrandpaJustification::<C::Header>::decode(&mut &next_justification[..]);
 
 					let justification = match decoded_justification {
 						Ok(j) => j,
 						Err(err) => {
 							log_error(format!("decode failed with error {:?}", err));
-							continue;
-						}
+							continue
+						},
 					};
 
-					return Some((justification, subscription));
+					return Some((justification, subscription))
 				}
 			},
 		)
-			.boxed())
-	}
-
-	async fn get_roots_for_header(&self, header: P::Header) -> Result<(P::Hash, P::Hash), Error> {
-		let signed_block = self.client.get_block(Some(header.hash())).await?;
-		// println!("client-substrate got sub next get_roots_for_header {:?}", signed_block);
-		Ok((
-			signed_block.header().state_root().clone(),
-			signed_block.header().extrinsics_root().clone(),
-		))
+		.boxed())
 	}
 }
