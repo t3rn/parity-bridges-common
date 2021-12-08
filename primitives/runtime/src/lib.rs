@@ -45,6 +45,12 @@ pub const NO_INSTANCE_ID: ChainId = [0, 0, 0, 0];
 /// Bridge-with-Rialto instance id.
 pub const RIALTO_CHAIN_ID: ChainId = *b"rlto";
 
+/// Bridge-with-Rialto instance id.
+pub const GATEWAY_BRIDGE_INSTANCE: ChainId = *b"bgat";
+
+/// Bridge-with-Millau instance id.
+pub const CIRCUIT_BRIDGE_INSTANCE: ChainId = *b"bcir";
+
 /// Bridge-with-Millau instance id.
 pub const MILLAU_CHAIN_ID: ChainId = *b"mlau";
 
@@ -59,6 +65,12 @@ pub const ROCOCO_CHAIN_ID: ChainId = *b"roco";
 
 /// Bridge-with-Wococo instance id.
 pub const WOCOCO_CHAIN_ID: ChainId = *b"woco";
+
+/// Bridge-with-Rococo instance id.
+pub const GATEWAY_CHAIN_ID: ChainId = *b"gate";
+
+/// Bridge-with-Wococo instance id.
+pub const CIRCUIT_CHAIN_ID: ChainId = *b"circ";
 
 /// Call-dispatch module prefix.
 pub const CALL_DISPATCH_MODULE_PREFIX: &[u8] = b"pallet-bridge/dispatch";
